@@ -13,4 +13,4 @@ TRAIN:
   BATCH_SIZE: 513   # Number of training images (one roi per image)
 TEST:
   HAS_RPN: True
-  SCALES: (512,)
+  #SCALES: (512,)
