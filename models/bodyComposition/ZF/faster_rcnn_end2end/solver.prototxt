@@ -1,7 +1,6 @@
-train_net: "models/pascal_voc/ZF/faster_rcnn_end2end/train.prototxt"
+train_net: "models/bodyComposition/ZF/faster_rcnn_end2end/train.prototxt"
 
-base_lr: 0.001
-#base_lr: 0
+base_lr: 0.4
 lr_policy: "step"
 gamma: 0.1
 stepsize: 50000
@@ -10,13 +9,6 @@ average_loss: 100
 momentum: 0.9
 weight_decay: 0.0005
 
-#base_lr: 0.001
-#lr_policy: "exp"
-#gamma: 0.999539589  # (0.00001/0.001)^(1/10000)
-#display: 1
-#average_loss: 100
-#momentum: 0.9
-#weight_decay: 0.0005
 
 # We disable standard caffe solver snapshotting and implement our own snapshot
 # function

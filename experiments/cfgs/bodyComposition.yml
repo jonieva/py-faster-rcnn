@@ -1,0 +1,16 @@
+EXP_DIR: bodyComposition
+TRAIN:
+  HAS_RPN: True
+  IMS_PER_BATCH: 1  # Obligatory! (not implemented otherwise)
+  BBOX_NORMALIZE_TARGETS_PRECOMPUTED: True
+  RPN_POSITIVE_OVERLAP: 0.7
+  RPN_BATCHSIZE: 256
+  PROPOSAL_METHOD: gt
+  BG_THRESH_LO: 0.0
+  SNAPSHOT_ITERS: 500
+  FG_FRACTION: 1
+  USE_FLIPPED: False
+  BATCH_SIZE: 513   # Number of training images (one roi per image)
+TEST:
+  HAS_RPN: True
+  SCALES: (512,)

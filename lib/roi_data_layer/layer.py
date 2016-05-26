@@ -83,10 +83,11 @@ class RoIDataLayer(caffe.Layer):
     def setup(self, bottom, top):
         """Setup the RoIDataLayer."""
 
-        # parse the layer parameter string, which must be valid YAML
+        # parse the layer parameter string, which must be valid YAML (at the moment just the number of classes!)
         layer_params = yaml.load(self.param_str_)
 
         self._num_classes = layer_params['num_classes']
+        print ("DEBUG: num_clases: {}".format(layer_params['num_classes']))
 
         self._name_to_top_map = {}
 
@@ -94,47 +95,50 @@ class RoIDataLayer(caffe.Layer):
         idx = 0
         top[idx].reshape(cfg.TRAIN.IMS_PER_BATCH, 3,
             max(cfg.TRAIN.SCALES), cfg.TRAIN.MAX_SIZE)
+        print("DEBUG: reshape: Items per batch: {}; Scales: {}; Train max size: {}".format(cfg.TRAIN.IMS_PER_BATCH,
+            max(cfg.TRAIN.SCALES), cfg.TRAIN.MAX_SIZE))
         self._name_to_top_map['data'] = idx
         idx += 1
 
         if cfg.TRAIN.HAS_RPN:
+            # im_info
             top[idx].reshape(1, 3)
             self._name_to_top_map['im_info'] = idx
+            # gt_boxes
             idx += 1
-
             top[idx].reshape(1, 4)
             self._name_to_top_map['gt_boxes'] = idx
             idx += 1
-        else: # not using RPN
-            # rois blob: holds R regions of interest, each is a 5-tuple
-            # (n, x1, y1, x2, y2) specifying an image batch index n and a
-            # rectangle (x1, y1, x2, y2)
-            top[idx].reshape(1, 5)
-            self._name_to_top_map['rois'] = idx
-            idx += 1
-
-            # labels blob: R categorical labels in [0, ..., K] for K foreground
-            # classes plus background
-            top[idx].reshape(1)
-            self._name_to_top_map['labels'] = idx
-            idx += 1
-
-            if cfg.TRAIN.BBOX_REG:
-                # bbox_targets blob: R bounding-box regression targets with 4
-                # targets per class
-                top[idx].reshape(1, self._num_classes * 4)
-                self._name_to_top_map['bbox_targets'] = idx
-                idx += 1
-
-                # bbox_inside_weights blob: At most 4 targets per roi are active;
-                # thisbinary vector sepcifies the subset of active targets
-                top[idx].reshape(1, self._num_classes * 4)
-                self._name_to_top_map['bbox_inside_weights'] = idx
-                idx += 1
-
-                top[idx].reshape(1, self._num_classes * 4)
-                self._name_to_top_map['bbox_outside_weights'] = idx
-                idx += 1
+        # else: # not using RPN
+        #     # rois blob: holds R regions of interest, each is a 5-tuple
+        #     # (n, x1, y1, x2, y2) specifying an image batch index n and a
+        #     # rectangle (x1, y1, x2, y2)
+        #     top[idx].reshape(1, 5)
+        #     self._name_to_top_map['rois'] = idx
+        #     idx += 1
+        #
+        #     # labels blob: R categorical labels in [0, ..., K] for K foreground
+        #     # classes plus background
+        #     top[idx].reshape(1)
+        #     self._name_to_top_map['labels'] = idx
+        #     idx += 1
+        #
+        #     if cfg.TRAIN.BBOX_REG:
+        #         # bbox_targets blob: R bounding-box regression targets with 4
+        #         # targets per class
+        #         top[idx].reshape(1, self._num_classes * 4)
+        #         self._name_to_top_map['bbox_targets'] = idx
+        #         idx += 1
+        #
+        #         # bbox_inside_weights blob: At most 4 targets per roi are active;
+        #         # thisbinary vector sepcifies the subset of active targets
+        #         top[idx].reshape(1, self._num_classes * 4)
+        #         self._name_to_top_map['bbox_inside_weights'] = idx
+        #         idx += 1
+        #
+        #         top[idx].reshape(1, self._num_classes * 4)
+        #         self._name_to_top_map['bbox_outside_weights'] = idx
+        #         idx += 1
 
         print 'RoiDataLayer: name_to_top:', self._name_to_top_map
         assert len(top) == len(self._name_to_top_map)

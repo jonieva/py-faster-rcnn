@@ -48,7 +48,10 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--num_dets', dest='max_per_image',
                         help='max number of detections per image',
-                        default=100, type=int)
+                        default=1, type=int)
+    parser.add_argument('--threshold', dest='threshold',
+                        help='visualization score threshold',
+                        default=0.5, type=float)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -83,8 +86,9 @@ if __name__ == '__main__':
     net.name = os.path.splitext(os.path.basename(args.caffemodel))[0]
 
     imdb = get_imdb(args.imdb_name)
+    # print("DEBUG: imdb = {} ({}); Comp_mode: {}".format(args.imdb_name, imdb, args.comp_mode))
     imdb.competition_mode(args.comp_mode)
     if not cfg.TEST.HAS_RPN:
         imdb.set_proposal_method(cfg.TEST.PROPOSAL_METHOD)
-
-    test_net(net, imdb, max_per_image=args.max_per_image, vis=args.vis)
+    #print("DEBUG: vis=", args.vis)
+    test_net(net, imdb, max_per_image=args.max_per_image, vis=args.vis, thresh=args.threshold)

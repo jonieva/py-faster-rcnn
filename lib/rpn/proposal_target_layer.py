@@ -20,7 +20,6 @@ class ProposalTargetLayer(caffe.Layer):
     Assign object detection proposals to ground-truth targets. Produces proposal
     classification labels and bounding-box regression targets.
     """
-
     def setup(self, bottom, top):
         layer_params = yaml.load(self.param_str_)
         self._num_classes = layer_params['num_classes']
@@ -35,6 +34,11 @@ class ProposalTargetLayer(caffe.Layer):
         top[3].reshape(1, self._num_classes * 4)
         # bbox_outside_weights
         top[4].reshape(1, self._num_classes * 4)
+
+        if DEBUG:
+            self._count = 0
+            self._fg_num = 0
+            self._bg_num = 0
 
     def forward(self, bottom, top):
         # Proposal ROIs (0, x1, y1, x2, y2) coming from RPN
@@ -78,10 +82,14 @@ class ProposalTargetLayer(caffe.Layer):
         # sampled rois
         top[0].reshape(*rois.shape)
         top[0].data[...] = rois
+        # if DEBUG:
+        #     print("DEBUG: rois ({})".format(rois.shape), rois)
 
         # classification labels
         top[1].reshape(*labels.shape)
         top[1].data[...] = labels
+        # if DEBUG:
+        #     print("DEBUG: labels ({})".format(labels.shape), labels)
 
         # bbox_targets
         top[2].reshape(*bbox_targets.shape)
@@ -189,5 +197,11 @@ def _sample_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image, num_clas
 
     bbox_targets, bbox_inside_weights = \
         _get_bbox_regression_labels(bbox_target_data, num_classes)
+
+    print("DEBUG: bbox_targets. Shape:{}; Max:{}; Min:{}; Mean:{}; std:{}".format(bbox_targets.shape, bbox_targets.max(),
+                                                bbox_targets.min(), bbox_targets.mean(), bbox_targets.std()))
+    print("DEBUG: bbox_inside_weights. Shape:{}; Max:{}; Min:{}; Mean:{}; std:{}".format(bbox_inside_weights.shape,
+                                                bbox_inside_weights.max(), bbox_inside_weights.min(), bbox_inside_weights.mean(), bbox_inside_weights.std()))
+
 
     return labels, rois, bbox_targets, bbox_inside_weights

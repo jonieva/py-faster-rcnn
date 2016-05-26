@@ -119,6 +119,8 @@ def im_detect(net, im, boxes=None):
         boxes (ndarray): R x (4*K) array of predicted bounding boxes
     """
     blobs, im_scales = _get_blobs(im, boxes)
+    # print ("DEBUG: im_scales: ", im_scales)
+    # print ("DEBUG: blobs (data shape): ", blobs["data"].shape)
 
     # When mapping from image ROIs to feature map ROIs, there's some aliasing
     # (some distinct image ROIs get mapped to the same feature ROI).
@@ -131,7 +133,6 @@ def im_detect(net, im, boxes=None):
                                         return_inverse=True)
         blobs['rois'] = blobs['rois'][index, :]
         boxes = boxes[index, :]
-
     if cfg.TEST.HAS_RPN:
         im_blob = blobs['data']
         blobs['im_info'] = np.array(
@@ -149,15 +150,26 @@ def im_detect(net, im, boxes=None):
     forward_kwargs = {'data': blobs['data'].astype(np.float32, copy=False)}
     if cfg.TEST.HAS_RPN:
         forward_kwargs['im_info'] = blobs['im_info'].astype(np.float32, copy=False)
-    else:
-        forward_kwargs['rois'] = blobs['rois'].astype(np.float32, copy=False)
+    # else:
+    #     forward_kwargs['rois'] = blobs['rois'].astype(np.float32, copy=False)
+    # Calculate result by forward propagation
+
+    print ("DEBUG: cls_prob before propagating: ",  net.blobs["cls_prob"].data)
+    # print ("DEBUG: cls_score before propagating: ",  net.blobs["cls_score"].data)
     blobs_out = net.forward(**forward_kwargs)
+
+    # print ("DEBUG: Blobs_out bbox_pred.shape: ", blobs_out["bbox_pred"].shape)
+    # print ("DEBUG: Blobs_out cls_prob.shape: ", blobs_out["cls_prob"].shape)
+    print("DEBUG: cls_prob after: ", net.blobs["cls_prob"].data)
+    # print ("DEBUG: cls_score after propagating: ",  net.blobs["cls_score"].data)
 
     if cfg.TEST.HAS_RPN:
         assert len(im_scales) == 1, "Only single-image batch implemented"
         rois = net.blobs['rois'].data.copy()
         # unscale back to raw image space
         boxes = rois[:, 1:5] / im_scales[0]
+
+    # print ("DEBUG: Boxes[0]: ", boxes[0], boxes.shape)
 
     if cfg.TEST.SVM:
         # use the raw scores before softmax under the assumption they
@@ -167,40 +179,62 @@ def im_detect(net, im, boxes=None):
         # use softmax estimated probabilities
         scores = blobs_out['cls_prob']
 
+    print ("DEBUG: Scores ({}): ".format(scores.shape), scores[0], scores[1], "...")
+
     if cfg.TEST.BBOX_REG:
         # Apply bounding-box regression deltas
         box_deltas = blobs_out['bbox_pred']
+        # print ("DEBUG: box_deltas: ", box_deltas)
         pred_boxes = bbox_transform_inv(boxes, box_deltas)
+        # print ("DEBUG: pred_boxes: ", pred_boxes)
         pred_boxes = clip_boxes(pred_boxes, im.shape)
-    else:
-        # Simply repeat the boxes, once for each class
-        pred_boxes = np.tile(boxes, (1, scores.shape[1]))
+        print ("DEBUG: pred_boxes_clipped ({}): ".format(pred_boxes.shape), pred_boxes[0], pred_boxes[1])
+    # else:
+    #     # Simply repeat the boxes, once for each class
+    #     pred_boxes = np.tile(boxes, (1, scores.shape[1]))
 
-    if cfg.DEDUP_BOXES > 0 and not cfg.TEST.HAS_RPN:
-        # Map scores and predictions back to the original set of boxes
-        scores = scores[inv_index, :]
-        pred_boxes = pred_boxes[inv_index, :]
+    # if cfg.DEDUP_BOXES > 0 and not cfg.TEST.HAS_RPN:
+    #     # Map scores and predictions back to the original set of boxes
+    #     scores = scores[inv_index, :]
+    #     pred_boxes = pred_boxes[inv_index, :]
 
     return scores, pred_boxes
 
-def vis_detections(im, class_name, dets, thresh=0.3):
+def vis_detections(im, class_name, dets, thresh=0.3, output_png_file=None):
     """Visual debugging of detections."""
-    import matplotlib.pyplot as plt
-    im = im[:, :, (2, 1, 0)]
-    for i in xrange(np.minimum(10, dets.shape[0])):
-        bbox = dets[i, :4]
-        score = dets[i, -1]
-        if score > thresh:
-            plt.cla()
-            plt.imshow(im)
-            plt.gca().add_patch(
-                plt.Rectangle((bbox[0], bbox[1]),
-                              bbox[2] - bbox[0],
-                              bbox[3] - bbox[1], fill=False,
-                              edgecolor='g', linewidth=3)
-                )
-            plt.title('{}  {:.3f}'.format(class_name, score))
-            plt.show()
+    if output_png_file is None:
+        # Preexistent style
+        import matplotlib.pyplot as plt
+
+        im = im[:, :, (2, 1, 0)]
+        for i in xrange(np.minimum(10, dets.shape[0])):
+            bbox = dets[i, :4]
+            score = dets[i, -1]
+            if score > thresh:
+                plt.cla()
+                plt.imshow(im)
+                plt.gca().add_patch(
+                    plt.Rectangle((bbox[0], bbox[1]),
+                                  bbox[2] - bbox[0],
+                                  bbox[3] - bbox[1], fill=False,
+                                  edgecolor='r', linewidth=3)
+                    )
+                plt.title('{}  {:.3f}'.format(class_name, score))
+                plt.show()
+    else:
+        # Jorge style
+        for i in xrange(dets.shape[0]):
+            bbox = dets[i, :4].astype(np.int)
+            score = dets[i, -1]
+            if score > thresh:
+                # TODO: set different colors for each class
+                #print("DEBUG: bbox: ", bbox)
+                cv2.rectangle(im, (bbox[1], bbox[0]), (bbox[3], bbox[2]), (0,0,255), thickness=2)
+                cv2.putText(im, str(score), (bbox[1], bbox[0]), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,0,255))
+            else:
+                print("DEBUG: score {} < {} for png {}".format(score, thresh, output_png_file.split(".")[-2]))
+        cv2.imwrite(output_png_file, im)
+        print("DEBUG: {} written".format(output_png_file))
 
 def apply_nms(all_boxes, thresh):
     """Apply non-maximum suppression to all predicted boxes output by the
@@ -224,9 +258,11 @@ def apply_nms(all_boxes, thresh):
             nms_boxes[cls_ind][im_ind] = dets[keep, :].copy()
     return nms_boxes
 
-def test_net(net, imdb, max_per_image=100, thresh=0.05, vis=False):
+def test_net(net, imdb, max_per_image=100, thresh=0.5, vis=False):
     """Test a Fast R-CNN network on an image database."""
     num_images = len(imdb.image_index)
+    print("*** Starting testing...")
+    print("DEBUG: num images: {}. Max regions per image: {}. Threshold: {}".format(num_images, max_per_image, thresh))
     # all detections are collected into:
     #    all_boxes[cls][image] = N x 5 array of detections in
     #    (x1, y1, x2, y2, score)
@@ -234,6 +270,7 @@ def test_net(net, imdb, max_per_image=100, thresh=0.05, vis=False):
                  for _ in xrange(imdb.num_classes)]
 
     output_dir = get_output_dir(imdb, net)
+    print("DEBUG: output dir: " + output_dir)
 
     # timers
     _t = {'im_detect' : Timer(), 'misc' : Timer()}
@@ -252,24 +289,38 @@ def test_net(net, imdb, max_per_image=100, thresh=0.05, vis=False):
             # that have the gt_classes field set to 0, which means there's no
             # ground truth.
             box_proposals = roidb[i]['boxes'][roidb[i]['gt_classes'] == 0]
-
         im = cv2.imread(imdb.image_path_at(i))
         _t['im_detect'].tic()
         scores, boxes = im_detect(net, im, box_proposals)
         _t['im_detect'].toc()
 
+
         _t['misc'].tic()
         # skip j = 0, because it's the background class
         for j in xrange(1, imdb.num_classes):
             inds = np.where(scores[:, j] > thresh)[0]
+            # cls_scores (for cls_ind=1):
+            # [CL1BB0_SCORE, CL1BB1_SCORE]
             cls_scores = scores[inds, j]
+
+            # cls_boxes (for cls_ind=1):
+            # [[CL1BB0_0, CL1BB0_1, CL1BB0_2, CL1BB0_3],
+            #  [CL1BB1_0, CL1BB1_1, CL1BB1_2, CL1BB1_3]]
             cls_boxes = boxes[inds, j*4:(j+1)*4]
+            # This will give us, for every class, the 4 coordinates of every box plus the score.
+            # Ex (for class 1: [[CL1BB0_0, CL1BB0_1, CL1BB0_2, CL1BB0_3, CL1BB0_SCORE],
+            #                   [CL1BB1_0, CL1BB1_1, CL1BB1_2, CL1BB1_3, CL1BB1_SCORE]],
             cls_dets = np.hstack((cls_boxes, cls_scores[:, np.newaxis])) \
                 .astype(np.float32, copy=False)
+            # Use NMS (Non Maximum Supression) to ignore redundant overlapping bounding boxes
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
+            print("DEBUG: cls_dets: ", cls_dets)
+            file_name = os.path.basename(imdb.image_path_at(i))
+            output_file = os.path.join(output_dir, "{}_{}.{}".format(
+                file_name.split(".")[0], j, file_name.split(".")[1]))
             if vis:
-                vis_detections(im, imdb.classes[j], cls_dets)
+                vis_detections(im, imdb.classes[j], cls_dets, output_png_file=output_file, thresh=thresh)
             all_boxes[j][i] = cls_dets
 
         # Limit to max_per_image detections *over all classes*
@@ -287,9 +338,12 @@ def test_net(net, imdb, max_per_image=100, thresh=0.05, vis=False):
               .format(i + 1, num_images, _t['im_detect'].average_time,
                       _t['misc'].average_time)
 
+
     det_file = os.path.join(output_dir, 'detections.pkl')
     with open(det_file, 'wb') as f:
         cPickle.dump(all_boxes, f, cPickle.HIGHEST_PROTOCOL)
+    #print "{} boxes serialized and stored in {}".format(len(all_boxes), det_file)
 
-    print 'Evaluating detections'
-    imdb.evaluate_detections(all_boxes, output_dir)
+
+    #print 'Evaluating detections'
+    #imdb.evaluate_detections(all_boxes, output_dir)

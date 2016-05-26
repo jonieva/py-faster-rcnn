@@ -21,13 +21,14 @@ array=( $@ )
 len=${#array[@]}
 EXTRA_ARGS=${array[@]:3:$len}
 EXTRA_ARGS_SLUG=${EXTRA_ARGS// /_}
-
+echo Dataset
 case $DATASET in
   pascal_voc)
     TRAIN_IMDB="voc_2007_trainval"
     TEST_IMDB="voc_2007_test"
     PT_DIR="pascal_voc"
-    ITERS=70000
+    #ITERS=70000
+    ITERS=100
     ;;
   coco)
     # This is a very long and slow training schedule
@@ -37,6 +38,12 @@ case $DATASET in
     TEST_IMDB="coco_2014_minival"
     PT_DIR="coco"
     ITERS=490000
+    ;;
+  body_composition)
+    TRAIN_IMDB="bodyComposition_2016_trainval"
+    TEST_IMDB="bodyComposition_2016_test"
+    PT_DIR="bodyComposition"
+    ITERS=1100
     ;;
   *)
     echo "No dataset given"
